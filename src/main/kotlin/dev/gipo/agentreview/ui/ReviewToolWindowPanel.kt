@@ -56,6 +56,7 @@ import com.intellij.openapi.vcs.changes.issueLinks.TreeLinkMouseListener
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.PopupHandler
+import dev.gipo.agentreview.diff.CommentColors
 import dev.gipo.agentreview.diff.CommentEditorPopup
 import dev.gipo.agentreview.diff.CommentInlayPanel
 import com.intellij.ui.OnePixelSplitter
@@ -732,7 +733,7 @@ class ReviewToolWindowPanel(private val project: Project, parent: Disposable) : 
             if (open > 0) component.append("  $open ✎", SimpleTextAttributes.GRAYED_BOLD_ATTRIBUTES, editBadge(fileComments))
             if (resolved > 0) component.append("  $resolved resolved", SimpleTextAttributes.GRAYED_ATTRIBUTES)
             when (state) {
-                ReviewState.REVIEWED -> component.append("  ✓", SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, com.intellij.ui.JBColor(0x2E7D32, 0x81C784)))
+                ReviewState.REVIEWED -> component.append("  ✓", SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, CommentColors.resolved))
                 ReviewState.STALE -> component.append("  ⟳ changed", SimpleTextAttributes.GRAYED_ITALIC_ATTRIBUTES)
                 ReviewState.UNREVIEWED -> Unit
             }

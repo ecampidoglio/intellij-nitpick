@@ -102,7 +102,7 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
             val w = width - insets.left - insets.right
             val h = height - insets.top - insets.bottom
             val arc = JBUI.scale(10)
-            g2.color = CARD_BG
+            g2.color = CommentColors.cardBackground
             g2.fillRoundRect(x, y, w, h, arc, arc)
             g2.color = JBColor.border()
             g2.drawRoundRect(x, y, w - 1, h - 1, arc, arc)
@@ -118,8 +118,4 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
     }
 
     private fun escape(s: String): String = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-    companion object {
-        private val CARD_BG = JBColor(0xFFFFFF, 0x2B2D30)
-    }
 }
