@@ -100,6 +100,8 @@ interface ChangesListener {
     /** Same files, some content re-read (a save in branch mode). Repaint, do not rebuild. */
     fun hashesChanged() {}
 
+    fun scrollRequested() {}
+
     companion object {
         val TOPIC: Topic<ChangesListener> = Topic.create("AgentReview.changes", ChangesListener::class.java)
     }
@@ -342,7 +344,10 @@ class ReviewChangesModel(private val project: Project) : Disposable {
         }
         val opened = diffOpener?.invoke(rc)
         LOG.info("openDiff path=${rc.path} line=$line opener=${diffOpener != null} result=$opened")
-        if (opened == true) return
+        if (opened == true) {
+            project.messageBus.syncPublisher(ChangesListener.TOPIC).scrollRequested()
+            return
+        }
         val change = rc.change ?: return
         val all = changes.mapNotNull { it.change }
         val index = all.indexOf(change).coerceAtLeast(0)

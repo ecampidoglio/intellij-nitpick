@@ -69,6 +69,7 @@ class EditorReviewBinding(
         bus.subscribe(ChangesListener.TOPIC, object : ChangesListener {
             override fun changesUpdated(changes: List<ReviewedChange>) = render()
             override fun hashesChanged() = render()
+            override fun scrollRequested() = consumePendingScroll()
         })
         render(force = true)
         AddCommentGutterHover(editor, this) { line -> addCommentAt(line) }
