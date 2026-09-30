@@ -15,6 +15,7 @@ import dev.gipo.agentreview.model.ThreadEntry
 import com.intellij.openapi.project.Project
 import dev.gipo.agentreview.scope.ReviewChangesModel
 import dev.gipo.agentreview.scope.ReviewPaths
+import dev.gipo.agentreview.scope.ReviewedChange
 import dev.gipo.agentreview.store.ReviewStore
 import dev.gipo.agentreview.export.ContextLines
 import kotlinx.serialization.Serializable
@@ -122,8 +123,7 @@ class AgentReviewToolset : McpToolset {
         val line = newLine.takeIf { it > 0 } ?: return c.copy(path = path)
         val end = newEndLine.takeIf { it >= line } ?: line
         val rc = ReviewChangesModel.getInstance(project).find(path)
-        val snippet = rc?.content?.lines()?.let { lines -> if (line <= lines.size) lines.subList(line - 1, minOf(end, lines.size)).joinToString("\n") else null }
-        return c.copy(path = path, side = Side.NEW, startLine = line, endLine = end, contentHash = rc?.hash, snippet = snippet ?: c.snippet)
+        return c.copy(path = path, side = Side.NEW, startLine = line, endLine = end, contentHash = rc?.hash, snippet = snippet(rc, line, end) ?: c.snippet)
     }
 
     @McpTool
@@ -174,23 +174,28 @@ class AgentReviewToolset : McpToolset {
         @McpDescription("1-based line in the new version; omit for a file-level comment") line: Int = 0,
         @McpDescription("1-based end line for a range") end_line: Int = 0,
         @McpDescription("note, issue, question, nit, praise") type: String = "question",
-    ): AddResult {
-        val project = coroutineContext.project
-        val store = ReviewStore.getInstance(project)
+    ): AddResult = addComment(coroutineContext.project, path, text, line, end_line, type)
+
+    internal fun addComment(project: Project, path: String, text: String, line: Int, endLine: Int, type: String): AddResult {
+        val rc = if (line > 0) ReviewChangesModel.getInstance(project).find(path) else null
         val commentType = CommentType.entries.firstOrNull { it.name.equals(type, ignoreCase = true) } ?: CommentType.QUESTION
         val comment = Comment(
             path = path.trim().trimStart('/'),
             side = Side.NEW,
             startLine = line.takeIf { it > 0 },
-            endLine = end_line.takeIf { it > 0 && line > 0 },
+            endLine = endLine.takeIf { it > 0 && line > 0 },
             type = commentType,
             text = text,
+            snippet = snippet(rc, line, endLine.coerceAtLeast(line)),
             author = Author.AGENT,
-            contentHash = if (line > 0) ReviewChangesModel.getInstance(project).find(path)?.hash else null,
+            contentHash = rc?.hash,
         )
-        store.addComment(comment)
+        ReviewStore.getInstance(project).addComment(comment)
         return AddResult(comment.id, comment.location())
     }
+
+    private fun snippet(rc: ReviewedChange?, line: Int, end: Int): String? =
+        rc?.content?.lines()?.let { lines -> if (line <= lines.size) lines.subList(line - 1, minOf(end, lines.size)).joinToString("\n") else null }
 
     @McpTool
     @McpDescription("Comment totals (total, open, resolved, wont_fix, outdated) and the files in scope with review state and per-file open, resolved and won't-fix counts.")
