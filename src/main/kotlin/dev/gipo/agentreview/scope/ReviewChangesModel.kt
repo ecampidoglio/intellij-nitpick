@@ -7,6 +7,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -333,6 +334,9 @@ class ReviewChangesModel(private val project: Project) : Disposable {
 
     data class PendingScroll(val path: String, val side: dev.gipo.agentreview.model.Side, val line: Int)
 
+    @Volatile
+    private var ownDiffTab: VirtualFile? = null
+
     /** Diff scopes open the diff. Branch mode opens the source file itself and annotates that. */
     fun openDiff(rc: ReviewedChange, line: Int? = null, side: Side = Side.RIGHT) {
         if (isBranchMode) {
@@ -353,7 +357,11 @@ class ReviewChangesModel(private val project: Project) : Disposable {
         val index = all.indexOf(change).coerceAtLeast(0)
         val context = ShowDiffContext()
         if (line != null) context.putChangeContext(change, DiffUserDataKeys.SCROLL_TO_LINE, Pair.create(side, line - 1))
+        val editors = FileEditorManager.getInstance(project)
+        ownDiffTab?.let { editors.closeFile(it) }
+        val openBefore = editors.openFiles.toSet()
         ShowDiffAction.showDiffForChange(project, all, index, context)
+        ownDiffTab = editors.openFiles.firstOrNull { it !in openBefore }
     }
 
     /** Opens the working file of [path] in a regular editor, at [line] when given. */

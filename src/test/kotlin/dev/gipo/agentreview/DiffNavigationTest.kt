@@ -17,6 +17,17 @@ class DiffNavigationTest : GitReviewTestCase() {
         assertSize(1, openFiles())
     }
 
+    fun testKeepsOneDiffTabWithoutTheToolWindow() {
+        reviewUncommittedEdit(edited = "a.txt", untouched = "b.txt")
+        navigate("a.txt", 3)
+        assertEquals(2, caretLineInDiffOf("a.txt"))
+
+        navigate("a.txt", 5)
+
+        assertSize(1, openFiles())
+        assertEquals(4, caretLineInDiffOf("a.txt"))
+    }
+
     private fun navigate(path: String, line: Int) = runInEdtAndWait {
         ReviewChangesModel.getInstance(project).navigate(path, line)
     }
