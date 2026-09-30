@@ -120,6 +120,7 @@ Enable Settings | Tools | MCP Server. Nitpick adds these tools:
 | `agent_review_resolve_comment(id, reply)` | mark done; the reply shows in the IDE |
 | `agent_review_add_comment(path, text, line, end_line, type)` | ask the reviewer something |
 | `agent_review_status()` | per-file reviewed / stale / unreviewed |
+| `agent_review_navigate(path, line, side)` | show the reviewer a location: the diff at a line, or the file |
 
 The server is plain HTTP on localhost, so agents outside the IDE connect the
 same way. The settings page shows the URL and a token if restricted mode is on.
