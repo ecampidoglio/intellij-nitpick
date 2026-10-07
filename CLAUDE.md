@@ -7,7 +7,7 @@ diffs inline, mark files reviewed, hand the review to any agent.
 
 - `./gradlew test` (unit + headless platform tests), `./gradlew buildPlugin`,
   `./gradlew verifyPlugin` (must stay "Compatible", no internal API usages).
-- Compiles against the local Toolbox IDE in `gradle.properties` (`ideaHome`),
+- Compiles against the local IDE from `ideaHome` in `~/.gradle/gradle.properties`,
   IU 262 (2026.2). IntelliJ Platform Gradle Plugin 2.18.1, Kotlin 2.3, JDK 21.
 - First Gradle run and `runIde` take minutes. Run them in the background.
 - Sandbox log: `.intellijPlatform/sandbox/nitpick/IU-*/log/idea.log`.

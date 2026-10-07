@@ -1,7 +1,7 @@
 <idea-plugin package="dev.gipo.agentreview" require-restart="true">
     <id>dev.gipo.nitpick</id>
     <name>Nitpick</name>
-    <vendor email="gipo18649ah@gmail.com" url="https://github.com/gipo355/intellij-nitpick">gipo355</vendor>
+    <vendor url="https://github.com/gipo355/intellij-nitpick">gipo355</vendor>
     <description><![CDATA[
         <p>Review code written by AI agents inside IntelliJ, then hand the review back to the agent.
         Comment on lines like on a pull request, mark files as reviewed, and send the result to Claude Code,

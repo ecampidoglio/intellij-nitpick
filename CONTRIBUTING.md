@@ -3,7 +3,7 @@
 ## Setup
 
 - JDK 21.
-- IntelliJ IDEA 2026.2+, optional. `gradle.properties` reads `ideaHome`; without
+- IntelliJ IDEA 2026.2+, optional. Set `ideaHome=/path/to/ide` in `~/.gradle/gradle.properties`; without
   a local install Gradle downloads IU 2026.2 (about 1.5 GB). Override with
   `-PideaHome=/path/to/ide`.
 
