@@ -116,6 +116,9 @@
         <action id="AgentReview.GoToSource" class="dev.gipo.agentreview.actions.GoToSourceAction"
                 text="Go to Source" description="Open the file in its editor" icon="AllIcons.Actions.EditSource"/>
         <group id="AgentReview.TreePopup">
+            <action id="AgentReview.RemoveFromWorkspace" class="dev.gipo.agentreview.actions.RemoveFromWorkspaceAction"
+                    text="Remove from Workspace" description="Drop this repository's range from the Nitpick workspace. Its marks and comments come back on a re-add"
+                    icon="AllIcons.General.Remove"/>
             <reference ref="AgentReview.GoToSource"/>
             <reference ref="AgentReview.ToggleReviewed"/>
             <reference ref="AgentReview.AddFileComment"/>
