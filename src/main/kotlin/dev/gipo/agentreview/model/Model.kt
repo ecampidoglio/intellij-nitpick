@@ -223,4 +223,11 @@ data class ReviewStorage(
     val sessions: Map<String, ReviewSession> = emptyMap(),
     val currentKey: String = Scope().key(),
     val comments: List<Comment> = emptyList(),
-)
+) {
+    /** Generation an imported session of [scopeKey] takes: the live one while it is empty, else the next, so nothing is overwritten. */
+    fun importGeneration(scopeKey: String): Int {
+        val live = sessions.values.filter { it.scope.key() == scopeKey }.maxByOrNull { it.generation } ?: return 1
+        val used = !live.isEmpty || comments.any { it.sessionKey == live.key }
+        return if (used) live.generation + 1 else live.generation
+    }
+}
