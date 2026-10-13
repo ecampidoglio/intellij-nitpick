@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/gipo355/intellij-nitpick/compare/v0.7.0...v0.8.0) (2026-10-13)
+
+
+### Features
+
+* copy only the review scope to the clipboard ([200b5ff](https://github.com/gipo355/intellij-nitpick/commit/200b5fff253283d1beef9fc5d3151af1b3e862c3))
+* copy the scope and toggle what workspace ranges include past HEAD ([6ac0938](https://github.com/gipo355/intellij-nitpick/commit/6ac0938a94cecc2008413a3fa8cbbe7727594c40))
+* remove a repository from the workspace from the tree ([fcbbba9](https://github.com/gipo355/intellij-nitpick/commit/fcbbba9f50febb336239c9a63a0a24431fe4e5f1))
+* toggle what workspace ranges include past HEAD ([53666e8](https://github.com/gipo355/intellij-nitpick/commit/53666e856b36da44009ba48cbb7564d9e0569981))
+
+
+### Bug Fixes
+
+* import a session without overwriting the live one ([d6d5209](https://github.com/gipo355/intellij-nitpick/commit/d6d5209cba593d24576a355eafb11d3e74a09cd0))
+
 ## [0.7.0](https://github.com/gipo355/intellij-nitpick/compare/v0.6.0...v0.7.0) (2026-09-28)
 
 
