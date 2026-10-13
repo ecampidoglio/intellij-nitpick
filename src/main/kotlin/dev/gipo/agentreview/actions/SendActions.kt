@@ -29,6 +29,13 @@ class CopyReviewAction : SendReviewAction() {
     }
 }
 
+class CopyScopeAction : SendReviewAction() {
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        ClipboardChannel.send(project, ReviewExport.scope(project), "Scope copied")
+    }
+}
+
 class WriteReviewFileAction : SendReviewAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return

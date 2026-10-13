@@ -77,4 +77,15 @@ class WorkspaceScopeTest {
         assertTrue(md, md.contains("- core: HEAD~3..working tree (`git diff aaaaaaaa1111`)\n"))
         assertTrue(md, !md.contains("on `main`"))
     }
+
+    @Test
+    fun scopeAloneIsTheExportScopeBlock() {
+        val options = ExportOptions(branch = "main", mcpHint = false)
+        val session = ReviewSession(scope = ws)
+        assertEquals(
+            "Scope: workspace\n- auth: b1^..c3 (`git diff bbbbbbbb2222 cccccccc3333`)\n- core: HEAD~3..working tree (`git diff aaaaaaaa1111`)",
+            MarkdownExporter.scope(session, options),
+        )
+        assertTrue(MarkdownExporter.export(session, emptyList(), options).contains(MarkdownExporter.scope(session, options) + "\n\n"))
+    }
 }

@@ -89,6 +89,8 @@
                     text="Copy Review to Clipboard" icon="AllIcons.Actions.Copy">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt shift Y"/>
             </action>
+            <action id="AgentReview.CopyScope" class="dev.gipo.agentreview.actions.CopyScopeAction"
+                    text="Copy Scope to Clipboard" description="Copy only the scope: refs and git diff commands, no comments"/>
             <action id="AgentReview.SendToTerminal" class="dev.gipo.agentreview.actions.SendToTerminalAction"
                     text="Send to Terminal Agent" description="Paste the review into a terminal tab (claude, codex, opencode, pi…)"
                     icon="AllIcons.Nodes.Console"/>
