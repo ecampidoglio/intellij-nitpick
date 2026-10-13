@@ -52,13 +52,14 @@ object JsonExporter {
         put("base", session.scope.base?.let { JsonPrimitive(it) } ?: JsonNull)
         put("head", session.scope.head?.let { JsonPrimitive(it) } ?: JsonNull)
         put("root", session.scope.root?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("open_end", session.scope.openEnd.name.lowercase())
         put("ranges", buildJsonArray {
             session.scope.ranges.forEach { r ->
                 add(buildJsonObject {
                     put("repo", r.repo)
                     put("base", r.base)
                     put("head", r.head?.let { JsonPrimitive(it) } ?: JsonNull)
-                    put("label", r.label)
+                    put("label", r.label(session.scope.openEnd))
                 })
             }
         })

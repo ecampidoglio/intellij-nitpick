@@ -7,7 +7,7 @@ diffs inline, mark files reviewed, hand the review to any agent.
 
 - `./gradlew test` (unit + headless platform tests), `./gradlew buildPlugin`,
   `./gradlew verifyPlugin` (must stay "Compatible", no internal API usages).
-- Compiles against the local Toolbox IDE in `gradle.properties` (`ideaHome`),
+- Compiles against the local IDE from `ideaHome` in `~/.gradle/gradle.properties`,
   IU 262 (2026.2). IntelliJ Platform Gradle Plugin 2.18.1, Kotlin 2.3, JDK 21.
 - First Gradle run and `runIde` take minutes. Run them in the background.
 - Sandbox log: `.intellijPlatform/sandbox/nitpick/IU-*/log/idea.log`.
@@ -96,10 +96,13 @@ diffs inline, mark files reviewed, hand the review to any agent.
   files from `ProjectFileIndex` as `Change(null, CurrentContentRevision)`.
   Session key `branch:<name>[@folder/]`, `base` = HEAD when the plan started.
 - `ScopeKind.WORKSPACE`: one `RepoRange` per repo in `Scope.ranges`, base and
-  head pinned to hashes, head null = working tree (editable diff). The key is
-  the constant `workspace`: ranges MUST stay out of it so edits keep the
-  session. Built from the log ("Add to Nitpick"), branch popups ("Add Branch",
-  base = merge-base with `origin/HEAD`) and "Edit Workspace…".
+  head pinned to hashes. Head null is an open end at HEAD; `Scope.openEnd`
+  (toolbar) extends it: COMMITS `base..HEAD`, STAGED base vs index (own
+  `git diff --cached` parser), UNCOMMITTED working tree + untracked (editable
+  diff). The key is the constant `workspace`: ranges and `openEnd` MUST stay
+  out of it so edits keep the session. Built from the log ("Add to Nitpick"),
+  branch popups ("Add Branch", base = merge-base with `origin/HEAD`) and
+  "Edit Workspace…".
 - `ReviewedChange` is lazy: hash and content load on first use. Diff scopes
   prime everything in `refresh` (off EDT); the branch tree primes only files
   with a mark or comment. `state()` never reads a hash for an unmarked file.

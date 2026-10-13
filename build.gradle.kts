@@ -12,7 +12,7 @@ repositories {
     intellijPlatform { defaultRepositories() }
 }
 
-// Local IDE from gradle.properties when the directory exists (dev machine), otherwise a
+// Local IDE from ideaHome in ~/.gradle/gradle.properties when it exists (dev machine), otherwise a
 // downloaded IU so CI can build. Override with -PplatformVersion=2026.2.1.
 val ideaHome = providers.gradleProperty("ideaHome").map { file(it) }
 val hasLocalIde = ideaHome.map { it.isDirectory }.getOrElse(false)

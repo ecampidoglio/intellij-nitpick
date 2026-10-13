@@ -44,8 +44,10 @@ class AgentReviewToolset : McpToolset {
         range (git diff base..head; base may be a merge-base hash), commit (single commit in head), or branch:
         no diff, the human annotated the checked-out tree (head = branch name, root = folder or null, base = HEAD
         when the plan started). Treat branch comments as a plan for a change, not as a review of one.
-        workspace: one diff per repo in `ranges` [{repo, base, head, label}]; head null = working tree, so the diff
-        is `git diff base` (else `git diff base head`) inside that repo. In multi-repo projects paths are prefixed with the repo.""",
+        workspace: one diff per repo in `ranges` [{repo, base, head, label}], run inside that repo. head set:
+        `git diff base head`. head null = open end at HEAD, extended per `open_end`: commits -> `git diff base HEAD`,
+        staged -> `git diff --cached base`, uncommitted -> `git diff base` plus untracked files.
+        In multi-repo projects paths are prefixed with the repo.""",
     )
     suspend fun agent_review_get_review(
         @McpDescription("\"markdown\" or \"json\"") format: String = "markdown",

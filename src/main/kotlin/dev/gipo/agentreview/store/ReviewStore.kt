@@ -189,13 +189,17 @@ class ReviewStore(private val project: Project) : PersistentStateComponent<Revie
         update { it }
     }
 
-    /** Adds the session under its key and switches to it. The comments become its own; known ids are replaced. */
+    /**
+     * Adds the session as the live generation of its scope and switches to it. A used live session stays, superseded.
+     * The comments become the imported session's own; known ids are replaced.
+     */
     fun importSession(session: ReviewSession, comments: List<Comment>) {
         synchronized(this) {
             val ids = comments.map { it.id }.toSet()
-            val key = session.key
+            val imported = session.copy(generation = storage.importGeneration(session.scope.key()))
+            val key = imported.key
             storage = storage.copy(
-                sessions = storage.sessions + (key to session),
+                sessions = storage.sessions + (key to imported),
                 comments = storage.comments.filterNot { it.id in ids } + comments.map { it.copy(sessionKey = key) },
                 currentKey = key,
             )

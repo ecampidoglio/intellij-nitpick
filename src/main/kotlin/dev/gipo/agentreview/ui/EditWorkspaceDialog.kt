@@ -12,14 +12,14 @@ import dev.gipo.agentreview.scope.RefInput
 import dev.gipo.agentreview.scope.ScopeChanges
 import javax.swing.JComponent
 
-/** One row per repo. Empty base skips the repo, empty head is the working tree. Refs pin to hashes on OK. */
+/** One row per repo. Empty base skips the repo, empty head is HEAD, extended by the toolbar mode. Refs pin to hashes on OK. */
 class EditWorkspaceDialog(private val project: Project, private val current: Scope, repoIds: List<String>) : DialogWrapper(project) {
 
     private class Row(val repo: String, val existing: RepoRange?) {
         val baseText = existing?.let { it.baseRef ?: it.base }.orEmpty()
         val headText = existing?.let { it.headRef ?: it.head }.orEmpty()
         val base = JBTextField(baseText, 18).apply { emptyText.text = "skip" }
-        val head = JBTextField(headText, 18).apply { emptyText.text = "working tree" }
+        val head = JBTextField(headText, 18).apply { emptyText.text = "HEAD (open end)" }
         val unchanged: Boolean get() = existing != null && base.text.trim() == baseText && head.text.trim() == headText
     }
 
@@ -35,7 +35,7 @@ class EditWorkspaceDialog(private val project: Project, private val current: Sco
 
     override fun createCenterPanel(): JComponent = panel {
         row {
-            comment("Base: any ref. <code>HEAD</code> = uncommitted only, <code>HEAD~3</code>, <code>main...</code> = merge-base with main.<br>Head: empty = working tree.")
+            comment("Base: any ref. <code>HEAD</code> = uncommitted only (+ Staged or + Uncommitted), <code>HEAD~3</code>, <code>main...</code> = merge-base with main.<br>Head: empty = HEAD, extended by the toolbar mode.")
         }
         row("") {
             label("Base")

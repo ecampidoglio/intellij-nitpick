@@ -2,6 +2,7 @@ package dev.gipo.agentreview.export
 
 import dev.gipo.agentreview.model.Author
 import dev.gipo.agentreview.model.Comment
+import dev.gipo.agentreview.model.OpenEnd
 import dev.gipo.agentreview.model.ReviewSession
 import dev.gipo.agentreview.model.ScopeKind
 import dev.gipo.agentreview.model.commentOrder
@@ -40,19 +41,7 @@ object MarkdownExporter {
         val sb = StringBuilder()
         val planning = session.scope.kind == ScopeKind.BRANCH
         sb.append(if (planning && options.intro == ExportOptions.DEFAULT_INTRO) ExportOptions.PLAN_INTRO else options.intro).append("\n\n")
-        val scope = session.scope
-        if (scope.kind == ScopeKind.WORKSPACE) {
-            sb.append("Scope: workspace")
-            scope.ranges.forEach { r ->
-                sb.append("\n- ").append(r.repo).append(": ").append(r.label)
-                    .append(" (`git diff ").append(r.base).append(r.head?.let { " $it" } ?: "").append("`)")
-            }
-        } else {
-            sb.append("Scope: ").append(scope.describe())
-            if (!planning) options.branch?.let { sb.append(" on `").append(it).append('`') }
-        }
-        if (planning) session.scope.base?.let { sb.append(", plan started at `").append(it.take(8)).append("` (git diff ").append(it.take(8)).append("..HEAD shows what changed since)") }
-        sb.append("\n\n")
+        sb.append(scope(session, options)).append("\n\n")
         if (options.mcpHint) sb.append(ExportOptions.MCP_HINT).append("\n\n")
 
         if (located.isEmpty() && reviewLevel.isEmpty() && session.notes.isBlank()) {
@@ -80,6 +69,30 @@ object MarkdownExporter {
             sb.append("Review notes:\n")
             notes.forEach { sb.append("- ").append(it.lines().joinToString("\n  ")).append('\n') }
         }
+        return sb.toString()
+    }
+
+    /** The `Scope:` block alone, without trailing newline. */
+    fun scope(session: ReviewSession, options: ExportOptions = ExportOptions()): String {
+        val sb = StringBuilder()
+        val scope = session.scope
+        val planning = scope.kind == ScopeKind.BRANCH
+        if (scope.kind == ScopeKind.WORKSPACE) {
+            sb.append("Scope: workspace")
+            scope.ranges.forEach { r ->
+                val command = when {
+                    r.head != null -> "git diff ${r.base} ${r.head}"
+                    scope.openEnd == OpenEnd.COMMITS -> "git diff ${r.base} HEAD"
+                    scope.openEnd == OpenEnd.STAGED -> "git diff --cached ${r.base}"
+                    else -> "git diff ${r.base}"
+                }
+                sb.append("\n- ").append(r.repo).append(": ").append(r.label(scope.openEnd)).append(" (`").append(command).append("`)")
+            }
+        } else {
+            sb.append("Scope: ").append(scope.describe())
+            if (!planning) options.branch?.let { sb.append(" on `").append(it).append('`') }
+        }
+        if (planning) scope.base?.let { sb.append(", plan started at `").append(it.take(8)).append("` (git diff ").append(it.take(8)).append("..HEAD shows what changed since)") }
         return sb.toString()
     }
 

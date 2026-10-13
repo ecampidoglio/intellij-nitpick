@@ -1,7 +1,7 @@
 <idea-plugin package="dev.gipo.agentreview" require-restart="true">
     <id>dev.gipo.nitpick</id>
     <name>Nitpick</name>
-    <vendor email="gipo18649ah@gmail.com" url="https://github.com/gipo355/intellij-nitpick">gipo355</vendor>
+    <vendor url="https://github.com/gipo355/intellij-nitpick">gipo355</vendor>
     <description><![CDATA[
         <p>Review code written by AI agents inside IntelliJ, then hand the review back to the agent.
         Comment on lines like on a pull request, mark files as reviewed, and send the result to Claude Code,
@@ -89,6 +89,8 @@
                     text="Copy Review to Clipboard" icon="AllIcons.Actions.Copy">
                 <keyboard-shortcut keymap="$default" first-keystroke="alt shift Y"/>
             </action>
+            <action id="AgentReview.CopyScope" class="dev.gipo.agentreview.actions.CopyScopeAction"
+                    text="Copy Scope to Clipboard" description="Copy only the scope: refs and git diff commands, no comments"/>
             <action id="AgentReview.SendToTerminal" class="dev.gipo.agentreview.actions.SendToTerminalAction"
                     text="Send to Terminal Agent" description="Paste the review into a terminal tab (claude, codex, opencode, pi…)"
                     icon="AllIcons.Nodes.Console"/>
@@ -114,6 +116,9 @@
         <action id="AgentReview.GoToSource" class="dev.gipo.agentreview.actions.GoToSourceAction"
                 text="Go to Source" description="Open the file in its editor" icon="AllIcons.Actions.EditSource"/>
         <group id="AgentReview.TreePopup">
+            <action id="AgentReview.RemoveFromWorkspace" class="dev.gipo.agentreview.actions.RemoveFromWorkspaceAction"
+                    text="Remove from Workspace" description="Drop this repository's range from the Nitpick workspace. Its marks and comments come back on a re-add"
+                    icon="AllIcons.General.Remove"/>
             <reference ref="AgentReview.GoToSource"/>
             <reference ref="AgentReview.ToggleReviewed"/>
             <reference ref="AgentReview.AddFileComment"/>

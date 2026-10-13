@@ -34,6 +34,16 @@ object ReviewExport {
         return MarkdownExporter.export(session, comments, AgentReviewSettings.getInstance().exportOptions(branch).copy(groupByFile = groupByFile))
     }
 
+    fun scope(project: Project): String {
+        val session = ReviewStore.getInstance(project).session
+        val branch = try {
+            ScopeChanges.currentBranch(project, session.scope.repo)
+        } catch (e: Exception) {
+            null
+        }
+        return MarkdownExporter.scope(session, AgentReviewSettings.getInstance().exportOptions(branch))
+    }
+
     fun json(project: Project): String {
         val session = ReviewStore.getInstance(project).session
         val branch = try {
@@ -47,9 +57,9 @@ object ReviewExport {
 }
 
 object ClipboardChannel {
-    fun send(project: Project, text: String) {
+    fun send(project: Project, text: String, title: String = "Review copied") {
         CopyPasteManager.getInstance().setContents(StringSelection(text))
-        Notifications.info(project, "Review copied", "Paste it into your agent's prompt.")
+        Notifications.info(project, title, "Paste it into your agent's prompt.")
     }
 }
 

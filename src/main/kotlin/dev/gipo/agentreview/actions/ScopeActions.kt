@@ -3,10 +3,13 @@ package dev.gipo.agentreview.actions
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.PlatformDataKeys
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vcs.changes.ui.ChangesBrowserNode
+import com.intellij.openapi.vcs.changes.ui.ChangesTree
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.vcs.log.VcsLogDataKeys
@@ -66,7 +69,7 @@ class ReviewCommitAction : AnAction(), DumbAware {
 /**
  * Log selection of one repo as its workspace range, like the log's "Compare Versions": one commit is its own change,
  * two or more are oldest..newest with the oldest as base, not included. Everything git has in between counts, shown in
- * the log or not. When the newest is HEAD the range reaches the working tree.
+ * the log or not. When the newest is HEAD the range reaches HEAD as an open end, the toolbar mode decides how far.
  */
 class AddToWorkspaceAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
@@ -81,7 +84,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
         }
         val head = GitRepositoryManager.getInstance(project).getRepositoryForRootQuick(root)?.currentRevision
         e.presentation.isEnabledAndVisible = true
-        e.presentation.text = if (head == commits.first().hash.asString()) "Add to Nitpick, with Uncommitted Changes" else "Add to Nitpick"
+        e.presentation.text = if (head == commits.first().hash.asString()) "Add to Nitpick, Following HEAD" else "Add to Nitpick"
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -92,7 +95,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
         val newest = commits.first().hash.asString()
         val oldest = commits.last().hash.asString()
         val single = commits.size == 1
-        val toWorkingTree = repo.currentRevision == newest
+        val openEnd = repo.currentRevision == newest
         AppExecutorUtil.getAppExecutorService().execute {
             val base = if (single) ScopeChanges.parent(project, repo, newest) else oldest
             val onHistory = single || ScopeChanges.isAncestor(project, repo, oldest, newest)
@@ -112,8 +115,8 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
                     Notifications.info(project, "Added $count commits to Nitpick", "${base.take(8)}..${newest.take(8)} holds $count commits, $selected selected above the base. The others are hidden by log filters or come in through merges.")
                 }
                 val range = RepoRange(
-                    ScopeChanges.repoId(project, repo), base, if (toWorkingTree) null else newest,
-                    baseRef = if (single) "${newest.take(8)}^" else oldest.take(8), headRef = if (toWorkingTree) null else newest.take(8),
+                    ScopeChanges.repoId(project, repo), base, if (openEnd) null else newest,
+                    baseRef = if (single) "${newest.take(8)}^" else oldest.take(8), headRef = if (openEnd) null else newest.take(8),
                 )
                 startReview(project, workspaceScope(project).withRange(range))
             }, ModalityState.nonModal(), project.disposed)
@@ -123,7 +126,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
 
 /**
  * Branch popups: the branch as the workspace range of each repo that has it, from its merge-base with `origin/HEAD`.
- * The checked-out branch reaches the working tree.
+ * The checked-out branch reaches HEAD as an open end, the toolbar mode decides how far.
  */
 class AddBranchToWorkspaceAction : GitSingleBranchAction() {
     override fun updateIfEnabledAndVisible(e: AnActionEvent, project: Project, repositories: List<GitRepository>, reference: GitBranch) {
@@ -151,6 +154,37 @@ class AddBranchToWorkspaceAction : GitSingleBranchAction() {
                 if (ranges.isNotEmpty()) startReview(project, ranges.fold(workspaceScope(project)) { scope, r -> scope.withRange(r) })
             }, ModalityState.nonModal(), project.disposed)
         }
+    }
+}
+
+/** Nitpick tree, repository nodes of a workspace: drops their ranges. Marks and comments stay for a re-add. */
+class RemoveFromWorkspaceAction : AnAction(), DumbAware {
+    // Reads the tree selection.
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.EDT
+
+    override fun update(e: AnActionEvent) {
+        val repos = e.selectedRepoIds()
+        e.presentation.isEnabledAndVisible = repos.isNotEmpty()
+        e.presentation.text = if (repos.size == 1) "Remove '${repos.single()}' from Workspace" else "Remove ${repos.size} Repositories from Workspace"
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val repos = e.selectedRepoIds().toSet()
+        // The current session, also when it is a superseded generation.
+        ReviewStore.getInstance(project).update { s -> s.copy(scope = s.scope.copy(ranges = s.scope.ranges.filterNot { it.repo in repos })) }
+        ReviewChangesModel.getInstance(project).refresh()
+    }
+
+    private fun AnActionEvent.selectedRepoIds(): List<String> {
+        val project = project ?: return emptyList()
+        val scope = ReviewStore.getInstance(project).session.scope
+        if (scope.kind != ScopeKind.WORKSPACE) return emptyList()
+        val tree = getData(PlatformDataKeys.CONTEXT_COMPONENT) as? ChangesTree ?: return emptyList()
+        return tree.selectionPaths.orEmpty()
+            .mapNotNull { ((it.lastPathComponent as? ChangesBrowserNode<*>)?.userObject as? GitRepository)?.let { r -> ScopeChanges.repoId(project, r) } }
+            .filter { id -> scope.ranges.any { it.repo == id } }
+            .distinct()
     }
 }
 

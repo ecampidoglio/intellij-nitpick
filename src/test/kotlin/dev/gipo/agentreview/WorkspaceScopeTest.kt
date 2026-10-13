@@ -3,6 +3,7 @@ package dev.gipo.agentreview
 import dev.gipo.agentreview.export.ExportOptions
 import dev.gipo.agentreview.export.JsonExporter
 import dev.gipo.agentreview.export.MarkdownExporter
+import dev.gipo.agentreview.model.OpenEnd
 import dev.gipo.agentreview.model.RepoRange
 import dev.gipo.agentreview.model.ReviewSession
 import dev.gipo.agentreview.model.Scope
@@ -23,6 +24,7 @@ class WorkspaceScopeTest {
     fun keyIgnoresRanges() {
         assertEquals("workspace", Scope(ScopeKind.WORKSPACE).key())
         assertEquals("workspace", ws.key())
+        assertEquals("workspace", ws.copy(openEnd = OpenEnd.UNCOMMITTED).key())
         assertTrue(ScopeKind.WORKSPACE.followsChangeList)
     }
 
@@ -36,12 +38,15 @@ class WorkspaceScopeTest {
 
     @Test
     fun labels() {
-        assertEquals("HEAD~3..working tree", core.label)
-        assertEquals("b1^..c3", auth.label)
-        assertEquals("aaaaaaaa..working tree", RepoRange("x", base = "aaaaaaaa1111").label)
+        assertEquals("HEAD~3..HEAD", core.label(OpenEnd.COMMITS))
+        assertEquals("HEAD~3..index", core.label(OpenEnd.STAGED))
+        assertEquals("HEAD~3..working tree", core.label(OpenEnd.UNCOMMITTED))
+        assertEquals("b1^..c3", auth.label(OpenEnd.UNCOMMITTED))
+        assertEquals("aaaaaaaa..HEAD", RepoRange("x", base = "aaaaaaaa1111").label(OpenEnd.COMMITS))
         assertEquals("Workspace · 2 repos", ws.shortLabel())
         assertEquals("Workspace · 1 repo", Scope(ScopeKind.WORKSPACE, ranges = listOf(core)).shortLabel())
-        assertEquals("workspace: auth b1^..c3, core HEAD~3..working tree", ws.describe())
+        assertEquals("workspace: auth b1^..c3, core HEAD~3..HEAD", ws.describe())
+        assertEquals("workspace: auth b1^..c3, core HEAD~3..working tree", ws.copy(openEnd = OpenEnd.UNCOMMITTED).describe())
         assertEquals("workspace (empty)", Scope(ScopeKind.WORKSPACE).describe())
     }
 
@@ -51,6 +56,11 @@ class WorkspaceScopeTest {
         assertEquals(ws, json.decodeFromString(Scope.serializer(), json.encodeToString(Scope.serializer(), ws)))
         val legacy = json.decodeFromString(Scope.serializer(), """{"kind":"RANGE","base":"a","head":"b"}""")
         assertEquals(emptyList<RepoRange>(), legacy.ranges)
+        val staged = ws.copy(openEnd = OpenEnd.STAGED)
+        assertEquals(staged, json.decodeFromString(Scope.serializer(), json.encodeToString(Scope.serializer(), staged)))
+        val noMode = json.decodeFromString(Scope.serializer(), """{"kind":"WORKSPACE","ranges":[{"repo":"core","base":"aaaaaaaa1111"}]}""")
+        assertEquals(OpenEnd.COMMITS, noMode.openEnd)
+        assertNull(noMode.ranges.single().head)
     }
 
     @Test
@@ -67,6 +77,11 @@ class WorkspaceScopeTest {
         assertTrue(out, out.contains("\"repo\": \"core\""))
         assertTrue(out, out.contains("\"head\": null"))
         assertTrue(out, out.contains("\"label\": \"b1^..c3\""))
+        assertTrue(out, out.contains("\"label\": \"HEAD~3..HEAD\""))
+        assertTrue(out, out.contains("\"open_end\": \"commits\""))
+        val staged = JsonExporter.encode(JsonExporter.session(ReviewSession(scope = ws.copy(openEnd = OpenEnd.STAGED)), emptyList(), false, null))
+        assertTrue(staged, staged.contains("\"open_end\": \"staged\""))
+        assertTrue(staged, staged.contains("\"label\": \"HEAD~3..index\""))
     }
 
     @Test
@@ -74,7 +89,31 @@ class WorkspaceScopeTest {
         val md = MarkdownExporter.export(ReviewSession(scope = ws), emptyList(), ExportOptions(branch = "main", mcpHint = false))
         assertTrue(md, md.contains("Scope: workspace\n"))
         assertTrue(md, md.contains("- auth: b1^..c3 (`git diff bbbbbbbb2222 cccccccc3333`)\n"))
-        assertTrue(md, md.contains("- core: HEAD~3..working tree (`git diff aaaaaaaa1111`)\n"))
+        assertTrue(md, md.contains("- core: HEAD~3..HEAD (`git diff aaaaaaaa1111 HEAD`)\n"))
         assertTrue(md, !md.contains("on `main`"))
+    }
+
+    @Test
+    fun markdownCommandFollowsTheMode() {
+        val pinned = "- auth: b1^..c3 (`git diff bbbbbbbb2222 cccccccc3333`)"
+        val expected = mapOf(
+            OpenEnd.COMMITS to "- core: HEAD~3..HEAD (`git diff aaaaaaaa1111 HEAD`)",
+            OpenEnd.STAGED to "- core: HEAD~3..index (`git diff --cached aaaaaaaa1111`)",
+            OpenEnd.UNCOMMITTED to "- core: HEAD~3..working tree (`git diff aaaaaaaa1111`)",
+        )
+        for ((mode, line) in expected) {
+            assertEquals("Scope: workspace\n$pinned\n$line", MarkdownExporter.scope(ReviewSession(scope = ws.copy(openEnd = mode))))
+        }
+    }
+
+    @Test
+    fun scopeAloneIsTheExportScopeBlock() {
+        val options = ExportOptions(branch = "main", mcpHint = false)
+        val session = ReviewSession(scope = ws)
+        assertEquals(
+            "Scope: workspace\n- auth: b1^..c3 (`git diff bbbbbbbb2222 cccccccc3333`)\n- core: HEAD~3..HEAD (`git diff aaaaaaaa1111 HEAD`)",
+            MarkdownExporter.scope(session, options),
+        )
+        assertTrue(MarkdownExporter.export(session, emptyList(), options).contains(MarkdownExporter.scope(session, options) + "\n\n"))
     }
 }
