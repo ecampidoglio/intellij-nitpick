@@ -2,6 +2,7 @@ package dev.gipo.agentreview.export
 
 import dev.gipo.agentreview.model.Author
 import dev.gipo.agentreview.model.Comment
+import dev.gipo.agentreview.model.OpenEnd
 import dev.gipo.agentreview.model.ReviewSession
 import dev.gipo.agentreview.model.ScopeKind
 import dev.gipo.agentreview.model.commentOrder
@@ -79,8 +80,13 @@ object MarkdownExporter {
         if (scope.kind == ScopeKind.WORKSPACE) {
             sb.append("Scope: workspace")
             scope.ranges.forEach { r ->
-                sb.append("\n- ").append(r.repo).append(": ").append(r.label)
-                    .append(" (`git diff ").append(r.base).append(r.head?.let { " $it" } ?: "").append("`)")
+                val command = when {
+                    r.head != null -> "git diff ${r.base} ${r.head}"
+                    scope.openEnd == OpenEnd.COMMITS -> "git diff ${r.base} HEAD"
+                    scope.openEnd == OpenEnd.STAGED -> "git diff --cached ${r.base}"
+                    else -> "git diff ${r.base}"
+                }
+                sb.append("\n- ").append(r.repo).append(": ").append(r.label(scope.openEnd)).append(" (`").append(command).append("`)")
             }
         } else {
             sb.append("Scope: ").append(scope.describe())

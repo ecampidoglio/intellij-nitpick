@@ -20,18 +20,29 @@ enum class ScopeKind(val label: String) {
     val followsChangeList: Boolean get() = this == UNCOMMITTED || this == STAGED || this == UNSTAGED || this == WORKSPACE
 }
 
+/** How far a WORKSPACE range without a pinned head reaches past HEAD. */
+enum class OpenEnd(val label: String) {
+    COMMITS("Commits"),
+    STAGED("+ Staged"),
+    UNCOMMITTED("+ Uncommitted"),
+}
+
 /** One repo's part of a WORKSPACE scope. Refs are pinned hashes; the `*Ref` fields keep what the user picked. */
 @Serializable
 data class RepoRange(
     /** `ReviewPaths.repoId`. */
     val repo: String,
     val base: String,
-    /** Null: the working tree. */
+    /** Null: HEAD as an open end, extended by [Scope.openEnd]. */
     val head: String? = null,
     val baseRef: String? = null,
     val headRef: String? = null,
 ) {
-    val label: String get() = (baseRef ?: shortRef(base)) + ".." + (headRef ?: head?.let(::shortRef) ?: "working tree")
+    fun label(end: OpenEnd): String = (baseRef ?: shortRef(base)) + ".." + (headRef ?: head?.let(::shortRef) ?: when (end) {
+        OpenEnd.COMMITS -> "HEAD"
+        OpenEnd.STAGED -> "index"
+        OpenEnd.UNCOMMITTED -> "working tree"
+    })
 }
 
 /** Hashes to 8 chars, refs untouched. */
@@ -55,6 +66,8 @@ data class Scope(
     val repo: String? = null,
     /** WORKSPACE only, one per repo, sorted by repo. */
     val ranges: List<RepoRange> = emptyList(),
+    /** WORKSPACE only. */
+    val openEnd: OpenEnd = OpenEnd.COMMITS,
 ) {
     /** Session key. Working-tree scopes share one session per kind; ranges, commits and branches get their own. */
     fun key(): String = when (kind) {
@@ -93,7 +106,7 @@ data class Scope(
         ScopeKind.RANGE -> "commits ${baseLabel ?: base?.take(8)}..${head?.take(8) ?: "HEAD"}"
         ScopeKind.COMMIT -> "commit ${head?.take(8)}"
         ScopeKind.BRANCH -> (root?.let { "$it on " } ?: "") + "branch ${head ?: "HEAD"} (whole tree, no diff)"
-        ScopeKind.WORKSPACE -> if (ranges.isEmpty()) "workspace (empty)" else "workspace: " + ranges.joinToString { "${it.repo} ${it.label}" }
+        ScopeKind.WORKSPACE -> if (ranges.isEmpty()) "workspace (empty)" else "workspace: " + ranges.joinToString { "${it.repo} ${it.label(openEnd)}" }
     } + (if (kind.followsChangeList) "" else repo?.let { " in $it" } ?: "")
 }
 

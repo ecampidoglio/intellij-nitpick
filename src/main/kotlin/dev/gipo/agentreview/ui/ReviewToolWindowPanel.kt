@@ -73,6 +73,7 @@ import dev.gipo.agentreview.actions.ToggleReviewedAction
 import dev.gipo.agentreview.actions.workspaceScope
 import dev.gipo.agentreview.model.Author
 import dev.gipo.agentreview.model.Comment
+import dev.gipo.agentreview.model.OpenEnd
 import dev.gipo.agentreview.model.ReviewSession
 import dev.gipo.agentreview.model.ReviewState
 import dev.gipo.agentreview.model.Scope
@@ -414,6 +415,7 @@ class ReviewToolWindowPanel(private val project: Project, parent: Disposable) : 
     private fun createToolbar(): JComponent {
         val group = DefaultActionGroup().apply {
             add(ScopeCombo())
+            add(OpenEndCombo())
             add(object : ToggleAction("Editor Annotations", "Show comment cards, the gutter + and the review buttons in diffs and editors. Off keeps the scope.", AllIcons.Actions.Show), DumbAware {
                 override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
                 override fun isSelected(e: AnActionEvent): Boolean = EditorReviewBinding.annotationsEnabled
@@ -780,6 +782,34 @@ class ReviewToolWindowPanel(private val project: Project, parent: Disposable) : 
             val f = get()
             e.presentation.description = "Filter: ${label(f)}"
             Toggleable.setSelected(e.presentation, f != entries.first())
+        }
+    }
+
+    /** WORKSPACE only: how far ranges without a pinned head reach. */
+    private inner class OpenEndCombo : ComboBoxAction(), DumbAware {
+        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+        override fun update(e: AnActionEvent) {
+            val scope = store.session.scope
+            e.presentation.isEnabledAndVisible = scope.kind == ScopeKind.WORKSPACE
+            e.presentation.text = scope.openEnd.label
+            e.presentation.description = "Ranges ending at HEAD: commits only, or with staged or all uncommitted changes"
+        }
+
+        override fun createPopupActionGroup(button: JComponent, context: com.intellij.openapi.actionSystem.DataContext): DefaultActionGroup {
+            val group = DefaultActionGroup()
+            for (mode in OpenEnd.entries) {
+                group.add(object : ToggleAction(mode.label), DumbAware {
+                    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+                    override fun isSelected(e: AnActionEvent): Boolean = store.session.scope.openEnd == mode
+                    override fun setSelected(e: AnActionEvent, state: Boolean) {
+                        if (!state || store.session.scope.openEnd == mode) return
+                        store.update { it.copy(scope = it.scope.copy(openEnd = mode)) }
+                        model.refresh()
+                    }
+                })
+            }
+            return group
         }
     }
 

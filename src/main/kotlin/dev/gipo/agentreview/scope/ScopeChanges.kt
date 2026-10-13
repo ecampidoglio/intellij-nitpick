@@ -14,6 +14,7 @@ import com.intellij.openapi.roots.ContentIterator
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.vcsUtil.VcsUtil
+import dev.gipo.agentreview.model.OpenEnd
 import dev.gipo.agentreview.model.RepoRange
 import dev.gipo.agentreview.model.Scope
 import dev.gipo.agentreview.model.ScopeKind
@@ -42,7 +43,7 @@ object ScopeChanges {
         return when (scope.kind) {
             ScopeKind.UNCOMMITTED -> uncommitted(project)
             ScopeKind.STAGED -> repos.flatMap { repo ->
-                GitChangeUtils.getStagedChanges(project, repo.root).map { stagedChange(project, it) }
+                GitChangeUtils.getStagedChanges(project, repo.root).map { stagedChange(project, it.beforePath, it.afterPath, GitRevisionNumber.HEAD) }
             }
             ScopeKind.UNSTAGED -> repos.flatMap { repo ->
                 val paths = GitChangeUtils.getUnstagedChanges(project, repo.root, null, true).map { it.filePath }
@@ -56,26 +57,30 @@ object ScopeChanges {
                 repos.flatMap { repo -> GitChangeUtils.getDiff(repo, "$hash~1", hash, true).orEmpty() }
             }
             ScopeKind.BRANCH -> branchTree(project, scope.root ?: scope.repo)
-            ScopeKind.WORKSPACE -> scope.ranges.flatMap { workspaceRange(project, it) }
+            ScopeKind.WORKSPACE -> scope.ranges.flatMap { workspaceRange(project, it, scope.openEnd) }
         }.sortedBy { ChangesUtil.getFilePath(it).path }
     }
 
     /** A range git cannot diff (repo gone, ref gc'd) yields nothing and one warning, not a silently empty repo. */
-    private fun workspaceRange(project: Project, range: RepoRange): List<Change> {
+    private fun workspaceRange(project: Project, range: RepoRange, end: OpenEnd): List<Change> {
         val repo = repository(project, range.repo)
         // Right after startup no repo is registered yet: nothing is missing.
         if (repo == null && GitRepositoryManager.getInstance(project).repositories.isEmpty()) return emptyList()
         val diff = repo?.let {
-            if (range.head != null) GitChangeUtils.getDiff(it, range.base, range.head, true)
-            else GitChangeUtils.getDiffWithWorkingTree(it, range.base, true)
+            when {
+                range.head != null -> GitChangeUtils.getDiff(it, range.base, range.head, true)
+                end == OpenEnd.COMMITS -> GitChangeUtils.getDiff(it, range.base, "HEAD", true)
+                end == OpenEnd.STAGED -> stagedDiff(project, it, range.base)
+                else -> GitChangeUtils.getDiffWithWorkingTree(it, range.base, true)
+            }
         }
         if (repo == null || diff == null) {
             // Refresh runs on every save: warn once per range.
-            val why = if (repo == null) "repository not found" else "git cannot diff ${range.label}"
+            val why = if (repo == null) "repository not found" else "git cannot diff ${range.label(end)}"
             if (warnedRanges.add(range)) Notifications.warn(project, "Workspace range skipped", "${range.repo}: $why")
             return emptyList()
         }
-        if (range.head != null) return diff.toList()
+        if (range.head != null || end != OpenEnd.UNCOMMITTED) return diff.toList()
         val vcs = ProjectLevelVcsManager.getInstance(project)
         val untracked = ChangeListManager.getInstance(project).unversionedFilesPaths
             .filter { !it.isDirectory && vcs.getVcsRootFor(it) == repo.root }
@@ -130,7 +135,7 @@ object ScopeChanges {
     }
 
     /**
-     * Pins [base] (and [head], null = working tree) of repo [repoId] to hashes.
+     * Pins [base] (and [head], null = HEAD as an open end) of repo [repoId] to hashes.
      * Returns the range, or an error message for the user.
      */
     fun pinRange(project: Project, repoId: String, base: RefInput, head: RefInput?): Result<RepoRange> {
@@ -216,12 +221,41 @@ object ScopeChanges {
     /** A stash is a commit on top of the HEAD it was taken from, so it reviews as the range `ref~1..ref`. */
     fun stashScope(ref: String): Scope = Scope(ScopeKind.RANGE, base = "$ref~1", head = ref, baseLabel = ref)
 
-    /** HEAD vs index, so later unstaged edits do not leak in. */
-    private fun stagedChange(project: Project, c: GitChangeUtils.GitDiffChange): Change {
-        val before = c.beforePath?.let { GitContentRevision.createRevision(it, GitRevisionNumber.HEAD, project) }
+    /** [base] vs index, so later unstaged edits do not leak in. */
+    private fun stagedChange(project: Project, beforePath: FilePath?, afterPath: FilePath?, base: GitRevisionNumber): Change {
+        val before = beforePath?.let { GitContentRevision.createRevision(it, base, project) }
         // ":0" makes git4idea run `git cat-file :0:<path>`, the stage-0 index entry.
-        val after = c.afterPath?.let { GitContentRevision.createRevision(it, GitRevisionNumber(INDEX_REV), project) }
+        val after = afterPath?.let { GitContentRevision.createRevision(it, GitRevisionNumber(INDEX_REV), project) }
         return Change(before, after)
+    }
+
+    /** `git diff --cached <base>`: [base] against the index. Null when git fails. */
+    private fun stagedDiff(project: Project, repo: GitRepository, base: String): List<Change>? {
+        val handler = GitLineHandler(project, repo.root, GitCommand.DIFF)
+        handler.addParameters("--cached", "--name-status", "-M", "--diff-filter=ADMRCT", "-z", base)
+        handler.setSilent(true)
+        val out = try {
+            Git.getInstance().runCommand(handler).getOutputOrThrow()
+        } catch (e: Exception) {
+            return null
+        }
+        val baseRev = GitRevisionNumber(base)
+        val path = { rel: String -> VcsUtil.getFilePath("${repo.root.path}/$rel", false) }
+        // Flat NUL-separated tokens: `M path`, `R100 old new`.
+        val tokens = out.split('\u0000').iterator()
+        return buildList {
+            while (tokens.hasNext()) {
+                val status = tokens.next().trim()
+                if (status.isEmpty() || !tokens.hasNext()) continue
+                val first = tokens.next()
+                when (status[0]) {
+                    'R', 'C' -> if (tokens.hasNext()) add(stagedChange(project, path(first), path(tokens.next()), baseRev))
+                    'A' -> add(stagedChange(project, null, path(first), baseRev))
+                    'D' -> add(stagedChange(project, path(first), null, baseRev))
+                    else -> add(stagedChange(project, path(first), path(first), baseRev))
+                }
+            }
+        }
     }
 
     private fun uncommitted(project: Project): List<Change> {

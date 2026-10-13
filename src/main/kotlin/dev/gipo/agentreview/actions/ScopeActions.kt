@@ -66,7 +66,7 @@ class ReviewCommitAction : AnAction(), DumbAware {
 /**
  * Log selection of one repo as its workspace range, like the log's "Compare Versions": one commit is its own change,
  * two or more are oldest..newest with the oldest as base, not included. Everything git has in between counts, shown in
- * the log or not. When the newest is HEAD the range reaches the working tree.
+ * the log or not. When the newest is HEAD the range reaches HEAD as an open end, the toolbar mode decides how far.
  */
 class AddToWorkspaceAction : AnAction(), DumbAware {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
@@ -81,7 +81,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
         }
         val head = GitRepositoryManager.getInstance(project).getRepositoryForRootQuick(root)?.currentRevision
         e.presentation.isEnabledAndVisible = true
-        e.presentation.text = if (head == commits.first().hash.asString()) "Add to Nitpick, with Uncommitted Changes" else "Add to Nitpick"
+        e.presentation.text = if (head == commits.first().hash.asString()) "Add to Nitpick, Following HEAD" else "Add to Nitpick"
     }
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -92,7 +92,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
         val newest = commits.first().hash.asString()
         val oldest = commits.last().hash.asString()
         val single = commits.size == 1
-        val toWorkingTree = repo.currentRevision == newest
+        val openEnd = repo.currentRevision == newest
         AppExecutorUtil.getAppExecutorService().execute {
             val base = if (single) ScopeChanges.parent(project, repo, newest) else oldest
             val onHistory = single || ScopeChanges.isAncestor(project, repo, oldest, newest)
@@ -112,8 +112,8 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
                     Notifications.info(project, "Added $count commits to Nitpick", "${base.take(8)}..${newest.take(8)} holds $count commits, $selected selected above the base. The others are hidden by log filters or come in through merges.")
                 }
                 val range = RepoRange(
-                    ScopeChanges.repoId(project, repo), base, if (toWorkingTree) null else newest,
-                    baseRef = if (single) "${newest.take(8)}^" else oldest.take(8), headRef = if (toWorkingTree) null else newest.take(8),
+                    ScopeChanges.repoId(project, repo), base, if (openEnd) null else newest,
+                    baseRef = if (single) "${newest.take(8)}^" else oldest.take(8), headRef = if (openEnd) null else newest.take(8),
                 )
                 startReview(project, workspaceScope(project).withRange(range))
             }, ModalityState.nonModal(), project.disposed)
@@ -123,7 +123,7 @@ class AddToWorkspaceAction : AnAction(), DumbAware {
 
 /**
  * Branch popups: the branch as the workspace range of each repo that has it, from its merge-base with `origin/HEAD`.
- * The checked-out branch reaches the working tree.
+ * The checked-out branch reaches HEAD as an open end, the toolbar mode decides how far.
  */
 class AddBranchToWorkspaceAction : GitSingleBranchAction() {
     override fun updateIfEnabledAndVisible(e: AnActionEvent, project: Project, repositories: List<GitRepository>, reference: GitBranch) {
