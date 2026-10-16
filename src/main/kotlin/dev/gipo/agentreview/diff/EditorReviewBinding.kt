@@ -16,7 +16,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
-import com.intellij.ui.JBColor
 import dev.gipo.agentreview.model.Comment
 import dev.gipo.agentreview.model.ContentHash
 import dev.gipo.agentreview.model.ReviewSession
@@ -165,7 +164,7 @@ class EditorReviewBinding(
     private fun highlight(start: Int, end: Int, c: Comment) {
         val doc = editor.document
         val attrs = TextAttributes().apply {
-            backgroundColor = if (c.resolved) RESOLVED_BG else COMMENT_BG
+            backgroundColor = CommentColors.lineBackground(c.resolved)
             effectType = EffectType.BOXED
         }
         val h = editor.markupModel.addRangeHighlighter(
@@ -235,7 +234,5 @@ class EditorReviewBinding(
             ProjectManager.getInstance().openProjects.forEach { if (!it.isDisposed) BranchEditorBinder.getInstance(it).sync() }
             EditorFactory.getInstance().allEditors.forEach { it.getUserData(KEY)?.render(force = true) }
         }
-        private val COMMENT_BG = JBColor(0xFFF4D6, 0x4A4429)
-        private val RESOLVED_BG = JBColor(0xE6F4E6, 0x2F3F2F)
     }
 }
