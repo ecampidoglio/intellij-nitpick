@@ -16,6 +16,7 @@ import dev.gipo.agentreview.store.ReviewStore
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
+import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
@@ -23,6 +24,10 @@ import java.text.DateFormat
 import java.util.Date
 import javax.swing.JPanel
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
+import javax.swing.plaf.basic.BasicHTML
+import javax.swing.text.View
+import kotlin.math.ceil
 
 /** Comment card rendered under the commented line: accent bar, header, body, actions. */
 class CommentInlayPanel(project: Project, private val comment: Comment, onChanged: () -> Unit) : JPanel(BorderLayout()) {
@@ -136,12 +141,31 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
         font = JBUI.Fonts.smallFont()
     }
 
-    private fun textLabel(text: String): JBLabel =
-        JBLabel("<html><div style='width:${JBUI.scale(520)}px'>${escape(text).replace("\n", "<br>")}</div></html>")
+    private fun textLabel(text: String): JBLabel = WrappingLabel("<html>${escape(text).replace("\n", "<br>")}</html>")
 
     private fun escape(s: String): String = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     companion object {
         private val CARD_BG = JBColor(0xFFFFFF, 0x2B2D30)
+    }
+}
+
+/**
+ * HTML label as tall as its text at the width it is given. Unconstrained it asks for 676px,
+ * the width the old `width:520px` div rendered at (Swing renders CSS px at 1.3x).
+ */
+private class WrappingLabel(html: String) : JBLabel(html) {
+    override fun getPreferredSize(): Dimension {
+        val view = getClientProperty(BasicHTML.propertyKey) as? View ?: return super.getPreferredSize()
+        val insets = insets
+        val preferred = JBUI.scale(676)
+        view.setSize((if (width > 0) width - insets.left - insets.right else preferred).toFloat(), 0f)
+        return Dimension(preferred + insets.left + insets.right, ceil(view.getPreferredSpan(View.Y_AXIS)).toInt() + insets.top + insets.bottom)
+    }
+
+    override fun setBounds(x: Int, y: Int, width: Int, height: Int) {
+        val resized = width != this.width
+        super.setBounds(x, y, width, height)
+        if (resized) SwingUtilities.invokeLater(::revalidate)
     }
 }

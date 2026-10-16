@@ -23,6 +23,7 @@ import git4idea.repo.GitRepositoryChangeListener
 import dev.gipo.agentreview.scope.ScopeChanges
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ui.componentsList.components.ScrollablePanel
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.wm.ToolWindowAnchor
@@ -123,7 +124,7 @@ class ReviewToolWindowPanel(private val project: Project, parent: Disposable) : 
     private val commentsModel = DefaultListModel<Comment>()
     private val commentsList = JBList(commentsModel)
     /** Card of the selected comment: the only place a file or folder comment's thread is readable in full. */
-    private val detail = JPanel(BorderLayout()).apply { isOpaque = false }
+    private val detail = ScrollablePanel(BorderLayout()).apply { isOpaque = false }
     private val status = JBLabel()
     private val notes = vimReadyTextField(project, "").apply { setPlaceholder("Review-level notes for the agent…") }
     private var suppressNotes = false
