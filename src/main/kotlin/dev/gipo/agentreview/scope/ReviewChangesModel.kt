@@ -7,6 +7,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.Task
@@ -99,6 +100,8 @@ interface ChangesListener {
 
     /** Same files, some content re-read (a save in branch mode). Repaint, do not rebuild. */
     fun hashesChanged() {}
+
+    fun scrollRequested() {}
 
     companion object {
         val TOPIC: Topic<ChangesListener> = Topic.create("AgentReview.changes", ChangesListener::class.java)
@@ -331,6 +334,9 @@ class ReviewChangesModel(private val project: Project) : Disposable {
 
     data class PendingScroll(val path: String, val side: dev.gipo.agentreview.model.Side, val line: Int)
 
+    @Volatile
+    private var ownDiffTab: VirtualFile? = null
+
     /** Diff scopes open the diff. Branch mode opens the source file itself and annotates that. */
     fun openDiff(rc: ReviewedChange, line: Int? = null, side: Side = Side.RIGHT) {
         if (isBranchMode) {
@@ -342,13 +348,20 @@ class ReviewChangesModel(private val project: Project) : Disposable {
         }
         val opened = diffOpener?.invoke(rc)
         LOG.info("openDiff path=${rc.path} line=$line opener=${diffOpener != null} result=$opened")
-        if (opened == true) return
+        if (opened == true) {
+            project.messageBus.syncPublisher(ChangesListener.TOPIC).scrollRequested()
+            return
+        }
         val change = rc.change ?: return
         val all = changes.mapNotNull { it.change }
         val index = all.indexOf(change).coerceAtLeast(0)
         val context = ShowDiffContext()
         if (line != null) context.putChangeContext(change, DiffUserDataKeys.SCROLL_TO_LINE, Pair.create(side, line - 1))
+        val editors = FileEditorManager.getInstance(project)
+        ownDiffTab?.let { editors.closeFile(it) }
+        val openBefore = editors.openFiles.toSet()
         ShowDiffAction.showDiffForChange(project, all, index, context)
+        ownDiffTab = editors.openFiles.firstOrNull { it !in openBefore }
     }
 
     /** Opens the working file of [path] in a regular editor, at [line] when given. */

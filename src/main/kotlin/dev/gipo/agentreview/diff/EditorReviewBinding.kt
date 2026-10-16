@@ -69,6 +69,7 @@ class EditorReviewBinding(
         bus.subscribe(ChangesListener.TOPIC, object : ChangesListener {
             override fun changesUpdated(changes: List<ReviewedChange>) = render()
             override fun hashesChanged() = render()
+            override fun scrollRequested() = consumePendingScroll()
         })
         render(force = true)
         AddCommentGutterHover(editor, this) { line -> addCommentAt(line) }
@@ -153,9 +154,10 @@ class EditorReviewBinding(
         val pending = model.pendingScroll ?: return
         if (!dev.gipo.agentreview.scope.ReviewPaths.matches(pending.path, path)) return
         val line = mapper.toEditor(pending.side, pending.line) ?: return
-        if (line >= editor.document.lineCount) return
+        val lastLine = editor.document.lineCount - 1
+        if (lastLine < 0) return
         model.pendingScroll = null
-        val pos = com.intellij.openapi.editor.LogicalPosition(line, 0)
+        val pos = com.intellij.openapi.editor.LogicalPosition(line.coerceAtMost(lastLine), 0)
         editor.caretModel.moveToLogicalPosition(pos)
         editor.scrollingModel.scrollTo(pos, com.intellij.openapi.editor.ScrollType.CENTER)
     }

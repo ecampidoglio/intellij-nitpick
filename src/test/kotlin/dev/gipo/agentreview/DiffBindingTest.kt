@@ -16,6 +16,7 @@ import dev.gipo.agentreview.actions.ToggleReviewedAction
 import dev.gipo.agentreview.diff.EditorReviewBinding
 import dev.gipo.agentreview.model.Comment
 import dev.gipo.agentreview.model.Side
+import dev.gipo.agentreview.scope.ReviewChangesModel
 import dev.gipo.agentreview.store.ReviewStore
 
 /** Opens a real two-side diff viewer headlessly and checks comments render as inlays. */
@@ -81,6 +82,20 @@ class DiffBindingTest : BasePlatformTestCase() {
         assertTrue("toggle reviewed back in editor", enabled(ToggleReviewedAction(), inEditor))
         store.clear()
         UIUtil.dispatchAllInvocationEvents()
+    }
+
+    fun testScrollPastTheEndGoesToTheLastLine() {
+        val newSide = openDiff()
+        val model = ReviewChangesModel.getInstance(project)
+        model.pendingScroll = ReviewChangesModel.PendingScroll(newSide.path, Side.NEW, 99)
+        try {
+            newSide.render(force = true)
+
+            assertNull(model.pendingScroll)
+            assertEquals(3, newSide.editor.caretModel.logicalPosition.line)
+        } finally {
+            model.pendingScroll = null
+        }
     }
 
     fun testBindingAndInlay() {
