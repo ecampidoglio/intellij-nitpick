@@ -6,6 +6,7 @@ import com.intellij.ui.JBColor
 import com.intellij.ui.components.ActionLink
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.panels.HorizontalLayout
+import com.intellij.ui.components.panels.VerticalLayout
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import dev.gipo.agentreview.model.Author
@@ -15,6 +16,7 @@ import dev.gipo.agentreview.store.ReviewStore
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Cursor
+import java.awt.Dimension
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
@@ -22,6 +24,10 @@ import java.text.DateFormat
 import java.util.Date
 import javax.swing.JPanel
 import javax.swing.SwingConstants
+import javax.swing.SwingUtilities
+import javax.swing.plaf.basic.BasicHTML
+import javax.swing.text.View
+import kotlin.math.ceil
 
 /** Comment card rendered under the commented line: accent bar, header, body, actions. */
 class CommentInlayPanel(project: Project, private val comment: Comment, onChanged: () -> Unit) : JPanel(BorderLayout()) {
@@ -39,9 +45,7 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
         }
 
         val header = JPanel(HorizontalLayout(10)).apply { isOpaque = false }
-        val who = if (comment.author == Author.AGENT) "Agent" else "You"
-        val whoIcon = if (comment.author == Author.AGENT) AllIcons.Nodes.Plugin else AllIcons.General.User
-        header.add(JBLabel(who, whoIcon, SwingConstants.LEFT).apply { font = JBUI.Fonts.label().asBold() })
+        header.add(authorLabel(comment.author))
         if (comment.type.marker.isNotEmpty()) {
             header.add(JBLabel(comment.type.marker).apply {
                 foreground = CommentColors.of(comment.type)
@@ -54,19 +58,18 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
                 font = JBUI.Fonts.smallFont()
             })
         }
-        header.add(JBLabel(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(comment.createdAt))).apply {
-            foreground = UIUtil.getContextHelpForeground()
-            font = JBUI.Fonts.smallFont()
-        })
+        header.add(timeLabel(comment.createdAt))
         card.add(header, BorderLayout.NORTH)
 
         val body = JPanel(BorderLayout(0, 4)).apply { isOpaque = false }
-        body.add(JBLabel("<html><div style='width:${JBUI.scale(520)}px'>${escape(comment.text).replace("\n", "<br>")}</div></html>"), BorderLayout.CENTER)
-        val replies = comment.thread.map { (if (it.author == Author.AGENT) "Agent: " else "You: ") + it.text } +
-            listOfNotNull(comment.reply?.takeIf { r -> r.isNotBlank() }?.let { "Agent: $it" })
+        body.add(textLabel(comment.text), BorderLayout.CENTER)
+        val replies = comment.thread.map { replyRow(it.author, it.text, it.createdAt) } +
+            listOfNotNull(comment.reply?.takeIf { it.isNotBlank() }?.let { replyRow(Author.AGENT, it, null) })
         if (replies.isNotEmpty()) {
-            body.add(JBLabel("<html><div style='width:${JBUI.scale(520)}px'><i>${replies.joinToString("<br>") { escape(it) }}</i></div></html>").apply {
-                foreground = UIUtil.getContextHelpForeground()
+            body.add(JPanel(VerticalLayout(8)).apply {
+                isOpaque = false
+                border = JBUI.Borders.emptyTop(4)
+                replies.forEach { add(it) }
             }, BorderLayout.SOUTH)
         }
         card.add(body, BorderLayout.CENTER)
@@ -117,5 +120,48 @@ class CommentInlayPanel(project: Project, private val comment: Comment, onChange
         cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
     }
 
+    private fun replyRow(author: Author, text: String, time: Long?): JPanel = JPanel(BorderLayout(0, 2)).apply {
+        isOpaque = false
+        add(JPanel(HorizontalLayout(10)).apply {
+            isOpaque = false
+            add(authorLabel(author))
+            time?.let { add(timeLabel(it)) }
+        }, BorderLayout.NORTH)
+        add(textLabel(text), BorderLayout.CENTER)
+    }
+
+    private fun authorLabel(author: Author): JBLabel {
+        val agent = author == Author.AGENT
+        return JBLabel(if (agent) "Agent" else "You", if (agent) AllIcons.Nodes.Plugin else AllIcons.General.User, SwingConstants.LEFT)
+            .apply { font = JBUI.Fonts.label().asBold() }
+    }
+
+    private fun timeLabel(millis: Long): JBLabel = JBLabel(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(millis))).apply {
+        foreground = UIUtil.getContextHelpForeground()
+        font = JBUI.Fonts.smallFont()
+    }
+
+    private fun textLabel(text: String): JBLabel = WrappingLabel("<html>${escape(text).replace("\n", "<br>")}</html>")
+
     private fun escape(s: String): String = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+}
+
+/**
+ * HTML label as tall as its text at the width it is given. Unconstrained it asks for 676px,
+ * the width the old `width:520px` div rendered at (Swing renders CSS px at 1.3x).
+ */
+private class WrappingLabel(html: String) : JBLabel(html) {
+    override fun getPreferredSize(): Dimension {
+        val view = getClientProperty(BasicHTML.propertyKey) as? View ?: return super.getPreferredSize()
+        val insets = insets
+        val preferred = JBUI.scale(676)
+        view.setSize((if (width > 0) width - insets.left - insets.right else preferred).toFloat(), 0f)
+        return Dimension(preferred + insets.left + insets.right, ceil(view.getPreferredSpan(View.Y_AXIS)).toInt() + insets.top + insets.bottom)
+    }
+
+    override fun setBounds(x: Int, y: Int, width: Int, height: Int) {
+        val resized = width != this.width
+        super.setBounds(x, y, width, height)
+        if (resized) SwingUtilities.invokeLater(::revalidate)
+    }
 }
