@@ -12,12 +12,18 @@ import dev.gipo.agentreview.model.Comment
 import dev.gipo.agentreview.model.CommentType
 import dev.gipo.agentreview.model.Side
 import dev.gipo.agentreview.model.ThreadEntry
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vcs.ProjectLevelVcsManager
+import com.intellij.openapi.vfs.VirtualFile
 import dev.gipo.agentreview.scope.ReviewChangesModel
 import dev.gipo.agentreview.scope.ReviewPaths
 import dev.gipo.agentreview.scope.ReviewedChange
 import dev.gipo.agentreview.store.ReviewStore
 import dev.gipo.agentreview.export.ContextLines
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -26,6 +32,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.coroutineContext
+import com.intellij.diff.util.Side as DiffSide
 
 /**
  * Agent-side pull channel on IntelliJ's bundled MCP server.
@@ -223,11 +230,42 @@ class AgentReviewToolset : McpToolset {
         )
     }
 
+    @McpTool
+    @McpDescription(
+        """Show the reviewer a location in the IDE, e.g. the code you are asking about.
+        A file in the review scope opens in its diff at the line, any other project file opens in the editor.""",
+    )
+    suspend fun agent_review_navigate(
+        @McpDescription("Project-relative path, e.g. src/main/App.kt") path: String,
+        @McpDescription("1-based line; omit to open the file without moving to a line") line: Int = 0,
+        @McpDescription("\"new\" or \"old\" side of the diff") side: String = "new",
+    ): NavigateResult = navigate(coroutineContext.project, path, line, side)
+
+    internal suspend fun navigate(project: Project, path: String, line: Int, side: String): NavigateResult {
+        val model = ReviewChangesModel.getInstance(project)
+        val target = path.trim()
+        val rc = model.find(target)
+        if (rc == null && !isProjectFile(project, model.findFile(target))) mcpFail("No file at $target")
+        val diffSide = if (side.equals("old", ignoreCase = true)) DiffSide.LEFT else DiffSide.RIGHT
+        val toLine = line.takeIf { it > 0 }
+        withContext(Dispatchers.EDT) {
+            if (rc != null) model.openDiff(rc, toLine, diffSide) else model.openSource(target, toLine)
+        }
+        return NavigateResult(target, rc != null)
+    }
+
+    private fun isProjectFile(project: Project, file: VirtualFile?): Boolean =
+        file != null && (ProjectLevelVcsManager.getInstance(project).getVcsRootFor(file) != null ||
+            project.basePath?.let { FileUtil.isAncestor(it, file.path, false) } == true)
+
     @Serializable
     data class ResolveResult(val id: String, val resolved: Boolean)
 
     @Serializable
     data class AddResult(val id: String, val location: String)
+
+    @Serializable
+    data class NavigateResult(val path: String, val in_scope: Boolean)
 
     @Serializable
     data class FileStatus(val path: String, val state: String, val open_comments: Int, val resolved_comments: Int, val wont_fix_comments: Int)
