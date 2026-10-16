@@ -91,6 +91,17 @@ class ReviewedChangeTest {
     }
 
     @Test
+    fun primeKeepsContentSoPlacementNeverRereads() {
+        var reads = 0
+        val rc = ReviewedChange(path = "a.kt", after = { reads++; "one\n" }, before = { reads++; "zero\n" })
+        rc.prime()
+        assertEquals(2, reads)
+        assertEquals("one\n", rc.text)
+        assertEquals("zero\n", rc.beforeText)
+        assertEquals(2, reads)
+    }
+
+    @Test
     fun presetHashWinsOverContent() {
         val rc = ReviewedChange(path = "a.kt", hash = "h", beforeHash = null, content = "x", beforeContent = null)
         assertEquals("h", rc.hash)

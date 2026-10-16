@@ -61,10 +61,10 @@ class ReviewedChange(
     ) : this(path, change, false, { content }, { beforeContent }, hash, beforeHash)
 
     private inner class Cache {
-        val hash = lazy { presetHash ?: after()?.let(ContentHash::of) }
-        val beforeHash = lazy { presetBeforeHash ?: before()?.let(ContentHash::of) }
         val content = lazy { after() }
         val beforeContent = lazy { before() }
+        val hash = lazy { presetHash ?: content.value?.let(ContentHash::of) }
+        val beforeHash = lazy { presetBeforeHash ?: beforeContent.value?.let(ContentHash::of) }
         /** `\r\n` folded, for snippet search. */
         val text = lazy { content.value?.toString()?.replace("\r\n", "\n") }
         val beforeText = lazy { beforeContent.value?.toString()?.replace("\r\n", "\n") }
